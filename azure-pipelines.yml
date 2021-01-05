@@ -1,0 +1,86 @@
+# ASP.NET Core (.NET Framework)
+# Build and test ASP.NET Core projects targeting the full .NET Framework.
+# Add steps that publish symbols, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+- Main
+
+stages:
+- stage: 'Build'
+  displayName: "Build it here"
+  jobs:
+  - job: Build
+    displayName: "Building it"
+  
+    pool:
+      vmImage: 'windows-latest'
+
+    variables:
+      solution: '**/*.sln'
+      buildPlatform: 'Any CPU'
+      buildConfiguration: 'Release'
+
+    steps:
+    - task: NuGetToolInstaller@1
+
+    - task: NuGetCommand@2
+      inputs:
+        restoreSolution: '$(solution)'
+
+    - task: VSBuild@1
+      inputs:
+        solution: '$(solution)'
+        msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\WebApp.zip" /p:DeployIisAppPath="Default Web Site"'
+        platform: '$(buildPlatform)'
+        configuration: '$(buildConfiguration)'
+
+    - task: VSTest@2
+      inputs:
+        platform: '$(buildPlatform)'
+        configuration: '$(buildConfiguration)'
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(System.ArtifactsDirectory)'
+        ArtifactName: 'pino'
+        publishLocation: 'Container'
+
+- stage: 'Deploy'
+  displayName: "deply it here"
+  jobs:
+  - job: Deploy
+    displayName: "deploy it"
+  
+    pool:
+      vmImage: 'windows-latest'
+     
+    steps:
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: 'current'
+          downloadType: 'single'
+          artifactName: 'pino'
+          downloadPath: '$(System.ArtifactsDirectory)'
+          allowPartiallySucceededBuilds: true
+
+      - task: AzureRmWebAppDeployment@4
+        inputs:
+          ConnectionType: 'AzureRM'
+          azureSubscription: 'Azure Pass - Sponsorship(1e5364c4-b0ad-4265-8457-aea3e275e258)'
+          appType: 'webApp'
+          WebAppName: 'appmetsql'
+          packageForLinux: '$(System.ArtifactsDirectory)/pino/*.zip'
+            
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+          ArtifactName: 'pino'
+          publishLocation: 'Container'
+          
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: 'current'
+          downloadType: 'single'
+          downloadPath: '$(System.ArtifactsDirectory)'
+          artifactName: 'pino'
